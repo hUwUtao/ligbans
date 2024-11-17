@@ -1,16 +1,16 @@
 {
   "name": "ligbans",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.0.2",
+  "description": "A shallow API/Database binding for MySQL LiteBans database (through drizzle)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "pub": "rm dist -r && tsc && cp package.json README.md LICENSE dist && cd dist && pnpm pack"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "stdpi",
+  "license": "MIT",
   "dependencies": {
-    "@prisma/client": "5.22.0",
     "drizzle-orm": "^0.36.3",
     "mysql2": "^3.11.4"
   },
@@ -18,6 +18,15 @@
     "@types/node": "^22.9.0",
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.28.1",
-    "tsx": "^4.19.2"
-  }
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LangDuaMC/ligbans.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LangDuaMC/ligbans/issues"
+  },
+  "homepage": "https://github.com/LangDuaMC/ligbans#readme"
 }

@@ -1,50 +1,63 @@
-import { MySql2Database } from 'drizzle-orm/mysql2'
 import {
   litebans_bans as banTable,
   litebans_history as hist,
   litebans_kicks as kickTable,
   litebans_warnings as warnTable,
   litebans_mutes as muteTable,
-} from './db/schema'
-import { desc, sql } from 'drizzle-orm'
-import { MySqlColumn, MySqlTable } from 'drizzle-orm/mysql-core'
-import { db } from './db'
+} from "./db/schema";
+import { drizzle, MySql2Database } from "drizzle-orm/mysql2";
+import { and, desc, eq } from "drizzle-orm";
+import { MySqlColumn, MySqlTable } from "drizzle-orm/mysql-core";
 
 type TemplateTable = {
-  id: MySqlColumn<any>
-  uuid: MySqlColumn<any>
-  banned_by_name: MySqlColumn<any>
-  reason: MySqlColumn<any>
-  time: MySqlColumn<any>
-  removed_by_date?: MySqlColumn<any>
-  removed_by_name?: MySqlColumn<any>
-  removed_by_reason?: MySqlColumn<any>
-  server_origin: MySqlColumn<any>
-  silent: MySqlColumn<any>
-} & MySqlTable
+  id: MySqlColumn<any>;
+  uuid: MySqlColumn<any>;
+  banned_by_name: MySqlColumn<any>;
+  reason: MySqlColumn<any>;
+  time: MySqlColumn<any>;
+  removed_by_date?: MySqlColumn<any>;
+  removed_by_name?: MySqlColumn<any>;
+  removed_by_reason?: MySqlColumn<any>;
+  server_origin: MySqlColumn<any>;
+  silent: MySqlColumn<any>;
+} & MySqlTable;
 
-type ListFuncTemplate<T> = (
+type ListFuncTemplate<T, P> = (
   db: MySql2Database,
   left: TemplateTable
-) => () => Promise<T[]>
+) => (p: P) => Promise<T[]>;
+
+type LitebansListParameter = {
+  exact?: string;
+  offset: number;
+  limit: number;
+};
 
 type LitebansListTemplate = {
-  id: bigint
-  bannedBy?: string
-  reason?: string
-  time: bigint
-  expire?: Date
-  freedBy?: string
-  freedReason?: string
-  origin?: string
-}
+  id: bigint;
+  name: string;
+  bannedBy?: string;
+  reason?: string;
+  time: bigint;
+  expire?: Date;
+  freedBy?: string;
+  freedReason?: string;
+  origin?: string;
+};
 
-const listTemplate: ListFuncTemplate<LitebansListTemplate> =
+/**
+ * template to index banlist with paginator and filter
+ */
+const listTemplate: ListFuncTemplate<
+  LitebansListTemplate,
+  LitebansListParameter
+> =
   (db, left) =>
-  (offset: number = 0, limit: number = 1024) =>
+  ({ offset = 0, limit = 1024, exact }) =>
     db
       .select({
         id: left.id,
+        name: hist.name,
         byName: left.banned_by_name,
         reason: left.reason,
         time: left.time,
@@ -60,45 +73,41 @@ const listTemplate: ListFuncTemplate<LitebansListTemplate> =
           : {}),
       })
       .from(left)
-      .where(sql`${left.silent} = ${0}`)
-      .leftJoin(hist, sql`${hist.uuid} = ${left.uuid}`)
+      .where(
+        and(
+          ...[
+            //
+            eq(left.silent, 0),
+            exact && eq(hist.name, exact),
+          ].filter(Boolean)
+        )
+      )
+      .leftJoin(hist, eq(left.uuid, hist.uuid))
       .offset(offset)
       .limit(limit)
       .orderBy(desc(left.id))
-      .execute()
+      .execute();
 
-export const bans = listTemplate(db, banTable)
-export const mutes = listTemplate(db, muteTable)
-export const warns = listTemplate(db, warnTable)
-export const kicks = listTemplate(db, kickTable)
+/**
+ *
+ * @param db the drizzle database connection (mysql2)
+ * @returns `{bans, mutes, warns, kicks}`
+ */
+export function connectLitebansDrizzle(db: MySql2Database) {
+  return {
+    bans: listTemplate(db, banTable),
+    mutes: listTemplate(db, muteTable),
+    warns: listTemplate(db, warnTable),
+    kicks: listTemplate(db, kickTable),
+  };
+}
 
-// export async function bans(db: MySql2Database) {
-//     return await db
-//         .select({
-//             id: bant.id,
-//             byName: bant.banned_by_name,
-//             reason: bant.reason,
-//             time: bant.time,
-//             expire: bant.removed_by_date,
-//             by: bant.removed_by_name,
-//         })
-//         .from(bant)
-//         .where(sql`${bant.silent} = ${0}`)
-//         .innerJoin(hist, sql`${hist.uuid} = ${bant.uuid}`)
-//         .execute()
-// }
-// export async function mutes(db: MySql2Database) {
-//     return await db
-//         .select({
-//             id: bant.id,
-//             byName: bant.banned_by_name,
-//             reason: bant.reason,
-//             time: bant.time,
-//             expire: bant.removed_by_date,
-//             by: bant.removed_by_name,
-//         })
-//         .from(mutt)
-//         .where(sql`${bant.silent} = ${0}`)
-//         .innerJoin(hist, sql`${hist.uuid} = ${bant.uuid}`)
-//         .execute()
-// }
+/**
+ *
+ * @param dburl drizzle format for database, currently, only mysql is implemented
+ * @returns {typeof connectLitebansDrizzle}
+ */
+export default function connectLitebans(dburl: string) {
+  const db = drizzle(dburl);
+  return connectLitebansDrizzle(db);
+}
